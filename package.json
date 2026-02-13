@@ -1,0 +1,30 @@
+{
+  "scripts": {
+    "format": "prettier --write \"**/*.{js,ts,jsx,tsx,json,md}\"",
+    "lint": "eslint \"src/**/*.{js,ts,jsx,tsx}\" --fix",
+    "check:format": "prettier --check \"**/*.{js,ts,jsx,tsx,json,md}\"",
+    "prepare": "husky install",
+    "dev": "nodemon --watch src --ext js,ts,json --exec node src/index.js"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.3",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "globals": "^17.3.0",
+    "husky": "^8.0.0",
+    "lint-staged": "^16.2.7",
+    "nodemon": "^2.0.22",
+    "prettier": "^3.8.1"
+  },
+  "lint-staged": {
+    "*.{js,ts,jsx,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  }
+}
