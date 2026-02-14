@@ -26,5 +26,8 @@
     "*.{json,md}": [
       "prettier --write"
     ]
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2"
   }
 }
