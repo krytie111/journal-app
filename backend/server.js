@@ -17,6 +17,42 @@ app.use(express.json({ limit: '50mb' })); // Support large blob uploads
 // In-memory session store (simple for single-user, replace with proper auth later)
 let dbConnection = null;
 let isUnlocked = false;
+let autoSaveInterval = null;
+
+// Auto-save database changes every 30 seconds
+function startAutoSave() {
+  if (autoSaveInterval) {
+    clearInterval(autoSaveInterval);
+  }
+
+  autoSaveInterval = setInterval(() => {
+    if (dbConnection && isUnlocked) {
+      try {
+        // Sync temp DB back to main file periodically
+        const tempDbPath = require('./db').dbPath + '.tmp';
+        const mainDbPath = require('./db').dbPath;
+
+        if (require('fs').existsSync(tempDbPath)) {
+          const dbData = require('fs').readFileSync(tempDbPath);
+          const fileData = require('fs').readFileSync(mainDbPath);
+          const salt = fileData.slice(0, 16);
+          const dbWithHeader = Buffer.concat([salt, dbData]);
+          require('fs').writeFileSync(mainDbPath, dbWithHeader);
+          console.log('Auto-saved database changes');
+        }
+      } catch (err) {
+        console.error('Auto-save error:', err);
+      }
+    }
+  }, 30000); // Every 30 seconds
+}
+
+function stopAutoSave() {
+  if (autoSaveInterval) {
+    clearInterval(autoSaveInterval);
+    autoSaveInterval = null;
+  }
+}
 
 // Utility to generate UUIDs
 function generateId() {
@@ -44,6 +80,7 @@ app.post('/api/unlock', async (req, res) => {
 
     dbConnection = await openDatabase(passphrase);
     isUnlocked = true;
+    startAutoSave();
 
     res.json({ success: true, message: 'Vault unlocked' });
   } catch (err) {
@@ -53,6 +90,7 @@ app.post('/api/unlock', async (req, res) => {
 
 // POST /api/lock - Lock the vault
 app.post('/api/lock', (req, res) => {
+  stopAutoSave();
   if (dbConnection) {
     closeDatabase(dbConnection);
     dbConnection = null;
@@ -372,11 +410,26 @@ app.listen(PORT, () => {
   console.log('Remember to unlock the vault with POST /api/unlock');
 });
 
-// Graceful shutdown
-process.on('SIGINT', () => {
+// Graceful shutdown handlers
+const shutdown = () => {
   console.log('Shutting down gracefully...');
+  stopAutoSave();
+  if (dbConnection) {
+    closeDatabase(dbConnection);
+    dbConnection = null;
+  }
+  process.exit(0);
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+process.on('SIGHUP', shutdown);
+
+// Handle uncaught errors
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
   if (dbConnection) {
     closeDatabase(dbConnection);
   }
-  process.exit(0);
+  process.exit(1);
 });

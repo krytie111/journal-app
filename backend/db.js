@@ -49,7 +49,14 @@ async function openDatabase(passphrase) {
 
   // Write SQLCipher portion to temp file
   const tempDbPath = dbPath + '.tmp';
-  fs.writeFileSync(tempDbPath, dbData, { mode: 0o600 });
+
+  // Remove stale temp file if it exists
+  if (fs.existsSync(tempDbPath)) {
+    fs.unlinkSync(tempDbPath);
+  }
+
+  fs.writeFileSync(tempDbPath, dbData);
+  fs.chmodSync(tempDbPath, 0o600);
 
   const key = await deriveKey(passphrase, salt);
 
@@ -88,17 +95,31 @@ async function openDatabase(passphrase) {
  */
 function closeDatabase(db) {
   if (db) {
-    db.close();
+    try {
+      // Ensure all pending writes are flushed to disk
+      // Run a checkpoint (works for any journal mode)
+      try {
+        db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+        // eslint-disable-next-line no-unused-vars
+      } catch (err) {
+        // Ignore if not in WAL mode
+      }
 
-    // Merge temp DB back into main file with salt header
-    const tempDbPath = dbPath + '.tmp';
-    if (fs.existsSync(tempDbPath)) {
-      const dbData = fs.readFileSync(tempDbPath);
-      const fileData = fs.readFileSync(dbPath);
-      const salt = fileData.slice(0, 16);
-      const dbWithHeader = Buffer.concat([salt, dbData]);
-      fs.writeFileSync(dbPath, dbWithHeader);
-      fs.unlinkSync(tempDbPath);
+      // Close the database connection
+      db.close();
+
+      // Merge temp DB back into main file with salt header
+      const tempDbPath = dbPath + '.tmp';
+      if (fs.existsSync(tempDbPath)) {
+        const dbData = fs.readFileSync(tempDbPath);
+        const fileData = fs.readFileSync(dbPath);
+        const salt = fileData.slice(0, 16);
+        const dbWithHeader = Buffer.concat([salt, dbData]);
+        fs.writeFileSync(dbPath, dbWithHeader);
+        fs.unlinkSync(tempDbPath);
+      }
+    } catch (err) {
+      console.error('Error closing database:', err);
     }
   }
 }

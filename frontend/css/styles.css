@@ -136,6 +136,15 @@ body {
   background: var(--bg-medium);
 }
 
+.date-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.date-controls button:disabled:hover {
+  background: var(--bg-light);
+}
+
 #date-selector {
   padding: 0.5rem;
   background: var(--bg-light);
@@ -163,6 +172,13 @@ body {
 
 .btn-primary:hover {
   background: var(--accent-hover);
+}
+
+.btn-primary:disabled {
+  background: var(--bg-light);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .btn-secondary {
@@ -270,6 +286,32 @@ body {
 
 .floating-window.pinned {
   border-color: var(--accent-primary);
+}
+
+.floating-window.read-only {
+  border-color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+.floating-window.read-only .window-header {
+  cursor: default;
+  background: var(--bg-medium);
+}
+
+.floating-window.read-only .window-title {
+  cursor: default;
+}
+
+.floating-window.read-only .window-title:hover {
+  background: transparent;
+}
+
+.floating-window.read-only .window-resize-handle {
+  display: none;
+}
+
+.floating-window.read-only .window-textarea {
+  cursor: default;
 }
 
 .window-header {
@@ -416,6 +458,10 @@ body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 }
 
+.modal-content.modal-confirm {
+  max-width: 500px;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -434,6 +480,20 @@ body {
   padding: 1.5rem;
   overflow-y: auto;
   flex: 1;
+}
+
+.modal-body p {
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  justify-content: flex-end;
 }
 
 /* Prompts Filters */

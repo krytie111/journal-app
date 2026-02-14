@@ -13,14 +13,16 @@ export class FloatingWindowManager {
     this.currentDayId = null;
     this.autoSaveDelay = 1000; // 1 second debounce
     this.saveTimers = new Map();
+    this.isReadOnly = false;
   }
 
   setCurrentDay(dayId) {
     this.currentDayId = dayId;
   }
 
-  async loadWindows(dayId) {
+  async loadWindows(dayId, readOnly = false) {
     this.setCurrentDay(dayId);
+    this.isReadOnly = readOnly;
 
     // Clear existing windows
     this.clearWindows();
@@ -40,7 +42,8 @@ export class FloatingWindowManager {
 
     windowEl.dataset.windowId = data.id;
     windowEl.querySelector('.window-title').textContent = data.title || 'Untitled';
-    windowEl.querySelector('.window-textarea').value = data.content || '';
+    const textarea = windowEl.querySelector('.window-textarea');
+    textarea.value = data.content || '';
 
     // Set position and size
     windowEl.style.left = `${data.position.x}px`;
@@ -51,6 +54,18 @@ export class FloatingWindowManager {
     // Update pinned state
     if (data.pinned) {
       windowEl.classList.add('pinned');
+    }
+
+    // Apply read-only mode if needed
+    if (this.isReadOnly) {
+      windowEl.classList.add('read-only');
+      textarea.readOnly = true;
+      windowEl.querySelector('.window-title').contentEditable = false;
+      // Hide close and pin buttons
+      const closeBtn = windowEl.querySelector('.btn-close');
+      const pinBtn = windowEl.querySelector('.btn-pin');
+      if (closeBtn) closeBtn.style.display = 'none';
+      if (pinBtn) pinBtn.style.display = 'none';
     }
 
     this.container.appendChild(windowEl);
@@ -64,6 +79,11 @@ export class FloatingWindowManager {
   }
 
   setupInteractions(windowEl, windowId) {
+    // Skip interaction setup if in read-only mode
+    if (this.isReadOnly) {
+      return;
+    }
+
     //const header = windowEl.querySelector('.window-header');
 
     // Make draggable
@@ -136,40 +156,43 @@ export class FloatingWindowManager {
     const closeBtn = windowEl.querySelector('.btn-close');
     const pinBtn = windowEl.querySelector('.btn-pin');
 
-    // Auto-save content on typing
-    textarea.addEventListener('input', () => {
-      this.scheduleAutoSave(windowId, textarea.value);
-    });
+    // Skip event listeners for editable actions if in read-only mode
+    if (!this.isReadOnly) {
+      // Auto-save content on typing
+      textarea.addEventListener('input', () => {
+        this.scheduleAutoSave(windowId, textarea.value);
+      });
 
-    // Auto-save title on edit
-    titleEl.addEventListener('blur', () => {
-      const title = titleEl.textContent.trim() || 'Untitled';
-      titleEl.textContent = title;
-      this.saveWindowTitle(windowId, title);
-    });
+      // Auto-save title on edit
+      titleEl.addEventListener('blur', () => {
+        const title = titleEl.textContent.trim() || 'Untitled';
+        titleEl.textContent = title;
+        this.saveWindowTitle(windowId, title);
+      });
 
-    titleEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        titleEl.blur();
-      }
-    });
+      titleEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          titleEl.blur();
+        }
+      });
 
-    // Close button
-    closeBtn.addEventListener('click', () => {
-      this.deleteWindow(windowId);
-    });
+      // Close button
+      closeBtn.addEventListener('click', () => {
+        this.deleteWindow(windowId);
+      });
 
-    // Pin button
-    pinBtn.addEventListener('click', () => {
-      const window = this.windows.get(windowId);
-      const isPinned = !window.data.pinned;
-      window.data.pinned = isPinned;
-      windowEl.classList.toggle('pinned', isPinned);
-      api.updateWindow(windowId, { pinned: isPinned });
-    });
+      // Pin button
+      pinBtn.addEventListener('click', () => {
+        const window = this.windows.get(windowId);
+        const isPinned = !window.data.pinned;
+        window.data.pinned = isPinned;
+        windowEl.classList.toggle('pinned', isPinned);
+        api.updateWindow(windowId, { pinned: isPinned });
+      });
+    }
 
-    // Bring to front on click
+    // Bring to front on click (allowed even in read-only mode)
     windowEl.addEventListener('mousedown', () => {
       this.bringToFront(windowEl);
     });

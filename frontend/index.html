@@ -97,6 +97,23 @@
       </div>
     </div>
 
+    <!-- Advance Day Confirmation Modal -->
+    <div id="advance-day-modal" class="modal hidden">
+      <div class="modal-content modal-confirm">
+        <div class="modal-header">
+          <h2>⚠️ Advance to Today?</h2>
+        </div>
+        <div class="modal-body">
+          <p>Your current journal entries will become read-only and uneditable.</p>
+          <p>A new journal entry will be created for today's date. Do you want to proceed?</p>
+        </div>
+        <div class="modal-footer">
+          <button id="confirm-advance" class="btn-primary">Yes, Advance</button>
+          <button id="cancel-advance" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Window Template -->
     <template id="window-template">
       <div class="floating-window" data-window-id="">

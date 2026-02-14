@@ -14,6 +14,9 @@ class JournalApp {
     this.goalsEditMode = false;
     this.prompts = [];
     this.currentCategory = 'all';
+    this.existingDays = []; // List of all days in database
+    this.currentEditableDay = null; // Most recent day (editable)
+    this.isViewingCurrentEditableDay = true;
 
     this.initializeElements();
     this.attachEventListeners();
@@ -54,6 +57,11 @@ class JournalApp {
     this.closePromptsBtn = document.getElementById('close-prompts');
     this.promptsFilters = document.querySelector('.prompts-filters');
     this.promptsList = document.getElementById('prompts-list');
+
+    // Advance day modal
+    this.advanceDayModal = document.getElementById('advance-day-modal');
+    this.confirmAdvanceBtn = document.getElementById('confirm-advance');
+    this.cancelAdvanceBtn = document.getElementById('cancel-advance');
   }
 
   attachEventListeners() {
@@ -65,12 +73,22 @@ class JournalApp {
 
     // Date navigation
     this.dateSelector.addEventListener('change', () => {
-      this.loadDate(this.dateSelector.value);
+      const selectedDate = this.dateSelector.value;
+      
+      // Validate that the selected date exists
+      if (!this.dayExists(selectedDate)) {
+        // Revert to current date and show warning
+        this.dateSelector.value = this.currentDate;
+        console.warn('Cannot select date with no journal entry:', selectedDate);
+        return;
+      }
+      
+      this.loadDate(selectedDate);
     });
 
     this.prevDayBtn.addEventListener('click', () => this.navigateDay(-1));
     this.nextDayBtn.addEventListener('click', () => this.navigateDay(1));
-    this.todayBtn.addEventListener('click', () => this.goToToday());
+    this.todayBtn.addEventListener('click', () => this.goToCurrentEditableDay());
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
@@ -101,6 +119,15 @@ class JournalApp {
       }
     });
 
+    // Advance day modal
+    this.confirmAdvanceBtn.addEventListener('click', () => this.confirmAdvanceDay());
+    this.cancelAdvanceBtn.addEventListener('click', () => this.hideAdvanceModal());
+    this.advanceDayModal.addEventListener('click', (e) => {
+      if (e.target === this.advanceDayModal) {
+        this.hideAdvanceModal();
+      }
+    });
+
     // Goals editing
     this.editGoalsBtn.addEventListener('click', () => this.enterGoalsEditMode());
     this.saveGoalsBtn.addEventListener('click', () => this.saveGoals());
@@ -112,7 +139,8 @@ class JournalApp {
       const status = await api.getStatus();
       if (status.unlocked) {
         this.showApp();
-        this.goToToday();
+        await this.loadExistingDays();
+        this.goToCurrentEditableDay();
       } else {
         this.showUnlock();
       }
@@ -129,7 +157,8 @@ class JournalApp {
     try {
       await api.unlock(passphrase);
       this.showApp();
-      this.goToToday();
+      await this.loadExistingDays();
+      this.goToCurrentEditableDay();
     } catch (err) {
       this.unlockError.textContent = err.message;
     }
@@ -155,34 +184,190 @@ class JournalApp {
     this.appScreen.classList.remove('hidden');
   }
 
-  goToToday() {
-    const today = new Date().toISOString().split('T')[0];
-    this.dateSelector.value = today;
-    this.loadDate(today);
+  async loadExistingDays() {
+    try {
+      const days = await api.getDays();
+      this.existingDays = days.map((d) => d.date).sort();
+
+      // Current editable day is the most recent day
+      if (this.existingDays.length > 0) {
+        this.currentEditableDay = this.existingDays[this.existingDays.length - 1];
+      } else {
+        // No days exist, create first day with today's date
+        const today = this.getTodayDate();
+        await api.getDay(today); // This creates the day
+        this.existingDays = [today];
+        this.currentEditableDay = today;
+      }
+    } catch (err) {
+      console.error('Failed to load existing days:', err);
+    }
+  }
+
+  goToCurrentEditableDay() {
+    if (this.currentEditableDay) {
+      this.dateSelector.value = this.currentEditableDay;
+      this.loadDate(this.currentEditableDay);
+    }
+  }
+
+  getTodayDate() {
+    return new Date().toISOString().split('T')[0];
+  }
+
+  isCurrentEditableDay(dateString) {
+    return dateString === this.currentEditableDay;
+  }
+
+  dayExists(dateString) {
+    return this.existingDays.includes(dateString);
+  }
+
+  canAdvanceDay() {
+    // Can only advance if current editable day is before today
+    const today = this.getTodayDate();
+    return this.currentEditableDay < today;
   }
 
   navigateDay(offset) {
-    const currentDate = new Date(this.currentDate);
-    currentDate.setDate(currentDate.getDate() + offset);
-    const newDate = currentDate.toISOString().split('T')[0];
-    this.dateSelector.value = newDate;
-    this.loadDate(newDate);
+    if (offset === 1) {
+      // Check if we're already at the current editable day
+      if (this.isViewingCurrentEditableDay) {
+        // Check if we can advance (current editable day must be before today)
+        if (this.canAdvanceDay()) {
+          // Advancing forward - show confirmation dialog
+          this.showAdvanceModal();
+        }
+        return;
+      } else {
+        // Navigate forward through existing days
+        const currentIndex = this.existingDays.indexOf(this.currentDate);
+        if (currentIndex < this.existingDays.length - 1) {
+          const newDate = this.existingDays[currentIndex + 1];
+          this.dateSelector.value = newDate;
+          this.loadDate(newDate);
+        }
+        return;
+      }
+    }
+
+    // Going backward
+    const currentIndex = this.existingDays.indexOf(this.currentDate);
+    if (currentIndex > 0) {
+      const newDate = this.existingDays[currentIndex - 1];
+      this.dateSelector.value = newDate;
+      this.loadDate(newDate);
+    }
+  }
+
+  showAdvanceModal() {
+    this.advanceDayModal.classList.remove('hidden');
+  }
+
+  hideAdvanceModal() {
+    this.advanceDayModal.classList.add('hidden');
+  }
+
+  async confirmAdvanceDay() {
+    this.hideAdvanceModal();
+
+    try {
+      // Always create new day with today's actual date (skip any missed days)
+      const today = this.getTodayDate();
+
+      // Only advance if today is actually after the current editable day
+      if (today <= this.currentEditableDay) {
+        console.warn('Cannot advance: current editable day is already today or in the future');
+        return;
+      }
+
+      await api.getDay(today); // This creates the day if it doesn't exist
+
+      // Reload existing days
+      await this.loadExistingDays();
+
+      // Navigate to the new current editable day (which should be today)
+      this.goToCurrentEditableDay();
+    } catch (err) {
+      console.error('Failed to advance day:', err);
+    }
   }
 
   async loadDate(dateString) {
     try {
-      this.currentDate = dateString;
+      // Only load dates that exist in the database
+      if (!this.dayExists(dateString)) {
+        console.warn('Day does not exist:', dateString);
+        return;
+      }
 
-      // Get or create day
+      this.currentDate = dateString;
+      this.isViewingCurrentEditableDay = this.isCurrentEditableDay(dateString);
+
+      // Update UI based on whether we're viewing current editable day
+      this.updateUIForDateMode();
+
+      // Get day
       this.currentDay = await api.getDay(dateString);
 
-      // Load windows
-      await this.windowManager.loadWindows(this.currentDay.id);
+      // Load windows with read-only mode for past dates
+      await this.windowManager.loadWindows(this.currentDay.id, !this.isViewingCurrentEditableDay);
 
       // Load goals
       await this.loadGoals();
     } catch (err) {
       console.error('Failed to load date:', err);
+    }
+  }
+
+  updateUIForDateMode() {
+    // Set min/max dates on date selector to guide users
+    if (this.existingDays.length > 0) {
+      this.dateSelector.min = this.existingDays[0];
+      this.dateSelector.max = this.existingDays[this.existingDays.length - 1];
+    }
+    
+    // Update previous day button
+    const currentIndex = this.existingDays.indexOf(this.currentDate);
+    this.prevDayBtn.disabled = currentIndex <= 0;
+
+    // Update next day button
+    if (this.isViewingCurrentEditableDay) {
+      // Viewing current editable day, can advance to new day only if it's before today
+      const canAdvance = this.canAdvanceDay();
+      this.nextDayBtn.disabled = !canAdvance;
+      this.nextDayBtn.title = canAdvance ? 'Advance to New Day (→)' : 'Already at current date';
+    } else {
+      // Viewing a past day, can navigate forward through existing days
+      const canGoForward = currentIndex < this.existingDays.length - 1;
+      this.nextDayBtn.disabled = !canGoForward;
+      this.nextDayBtn.title = canGoForward ? 'Next Day (→)' : 'At current editable day';
+    }
+
+    // Update Today button - it goes to current editable day
+    this.todayBtn.title = 'Go to Current Journal Entries';
+
+    // Show/hide edit goals button based on viewing current editable day
+    if (this.isViewingCurrentEditableDay) {
+      this.editGoalsBtn.style.display = '';
+    } else {
+      this.editGoalsBtn.style.display = 'none';
+      // Exit edit mode if we were editing
+      if (this.goalsEditMode) {
+        this.exitGoalsEditMode();
+      }
+    }
+
+    // Disable add buttons for past dates
+    this.addPromptBtn.disabled = !this.isViewingCurrentEditableDay;
+    this.addFreeformBtn.disabled = !this.isViewingCurrentEditableDay;
+
+    if (!this.isViewingCurrentEditableDay) {
+      this.addPromptBtn.title = 'Cannot add prompts to past entries';
+      this.addFreeformBtn.title = 'Cannot add text to past entries';
+    } else {
+      this.addPromptBtn.title = 'Add Journal Prompt';
+      this.addFreeformBtn.title = 'Add Freeform Text';
     }
   }
 
