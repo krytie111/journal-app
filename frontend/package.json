@@ -1,0 +1,13 @@
+{
+  "name": "frontend",
+  "private": true,
+  "scripts": {
+    "dev": "npx http-server . -p 8080 -c-1"
+  },
+  "dependencies": {
+    "interactjs": "^1.10.27"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
