@@ -7,14 +7,10 @@ const path = require('path');
 const crypto = require('crypto');
 const argon2 = require('argon2');
 const Database = require('better-sqlite3-multiple-ciphers');
+const { getJournalPath, JOURNAL_DIR } = require('./db');
 
-// Path to the journal database file
-const dbPath = path.resolve(__dirname, '../my-journal.db');
 // Path to the schema SQL file
 const schemaPath = path.resolve(__dirname, '../../journal-app-internal/database-schema.sql');
-
-// Master passphrase (for demo/debug, replace with secure input in production)
-const MASTER_PASSPHRASE = 'testpassphrase';
 
 /**
  * Derives a 256-bit encryption key from a passphrase using Argon2id
@@ -36,20 +32,32 @@ async function deriveKey(passphrase, salt) {
   return hash.toString('hex');
 }
 
-async function bootstrap() {
+/**
+ * Create a new encrypted journal database
+ * @param {string} journalName - Name of the journal (without .db extension)
+ * @param {string} passphrase - Master passphrase for encryption
+ * @returns {Promise<string>} Path to the created database
+ */
+async function createJournal(journalName, passphrase) {
+  const dbPath = getJournalPath(journalName);
+
   if (fs.existsSync(dbPath)) {
-    console.log('Database file already exists:', dbPath);
-    process.exit(0);
+    throw new Error(`Journal "${journalName}" already exists.`);
   }
 
-  console.log('Creating new encrypted journal database...');
+  // Ensure journal directory exists
+  if (!fs.existsSync(JOURNAL_DIR)) {
+    fs.mkdirSync(JOURNAL_DIR, { recursive: true, mode: 0o700 });
+  }
+
+  console.log(`Creating new encrypted journal: ${journalName}...`);
 
   // Generate random salt for key derivation
   const salt = crypto.randomBytes(16);
   console.log('Salt generated (will be embedded in database file)');
 
   // Derive encryption key from passphrase
-  const key = await deriveKey(MASTER_PASSPHRASE, salt);
+  const key = await deriveKey(passphrase, salt);
   console.log('Encryption key derived using Argon2id');
 
   // Create and open the encrypted database
@@ -68,7 +76,7 @@ async function bootstrap() {
     console.log('SQLCipher encryption configured');
   } catch (err) {
     console.error('Failed to configure encryption:', err);
-    process.exit(1);
+    throw err;
   }
 
   // Read and execute schema
@@ -78,7 +86,7 @@ async function bootstrap() {
     console.log('Database schema applied.');
   } catch (err) {
     console.error('Failed to apply schema:', err);
-    process.exit(1);
+    throw err;
   }
 
   // Seed journal prompts
@@ -87,7 +95,7 @@ async function bootstrap() {
     seedPrompts(db);
   } catch (err) {
     console.error('Failed to seed prompts:', err);
-    process.exit(1);
+    throw err;
   }
 
   db.close();
@@ -98,11 +106,37 @@ async function bootstrap() {
   const dbWithHeader = Buffer.concat([salt, dbData]);
   fs.writeFileSync(dbPath, dbWithHeader);
 
-  console.log('Bootstrap complete. Database ready at:', dbPath);
-  console.log('Salt embedded in database file - true single-file solution!');
+  console.log(`✓ Journal "${journalName}" created successfully at: ${dbPath}`);
+
+  return dbPath;
 }
 
-bootstrap().catch((err) => {
-  console.error('Bootstrap failed:', err);
-  process.exit(1);
-});
+/**
+ * CLI bootstrap function - kept for backward compatibility
+ */
+async function bootstrap() {
+  const journalName = process.argv[2] || 'my-journal';
+  const passphrase = process.argv[3] || 'testpassphrase';
+
+  try {
+    await createJournal(journalName, passphrase);
+    console.log('Bootstrap complete!');
+    process.exit(0);
+  } catch (err) {
+    console.error('Bootstrap failed:', err.message);
+    process.exit(1);
+  }
+}
+
+// Run bootstrap if called directly from CLI
+if (require.main === module) {
+  bootstrap().catch((err) => {
+    console.error('Bootstrap failed:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  createJournal,
+  bootstrap,
+};

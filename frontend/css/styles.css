@@ -87,6 +87,23 @@ body {
   background: var(--accent-hover);
 }
 
+.create-new-btn {
+  margin-top: 1rem;
+  width: 100%;
+  padding: 0.8rem;
+  background: var(--bg-light);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.create-new-btn:hover {
+  background: var(--bg-medium);
+}
+
 .error {
   color: var(--error-color);
   margin-top: 1rem;
@@ -486,6 +503,27 @@ body {
   margin-bottom: 1rem;
   color: var(--text-primary);
   line-height: 1.6;
+}
+
+.modal-body form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.modal-body label {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-bottom: -0.5rem;
+}
+
+.modal-body input {
+  padding: 0.8rem;
+  background: var(--bg-light);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 1rem;
 }
 
 .modal-footer {

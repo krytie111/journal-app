@@ -3,10 +3,28 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const argon2 = require('argon2');
 const Database = require('better-sqlite3-multiple-ciphers');
 
-const dbPath = path.resolve(__dirname, '../my-journal.db');
+// Get journal directory from environment variable or use default
+const JOURNAL_DIR = process.env.JOURNAL_DIR || path.join(os.homedir(), '.journal');
+
+// Ensure journal directory exists
+if (!fs.existsSync(JOURNAL_DIR)) {
+  fs.mkdirSync(JOURNAL_DIR, { recursive: true, mode: 0o700 });
+}
+
+/**
+ * Get the full path for a journal database file
+ * @param {string} journalName - Name of the journal (without .db extension)
+ * @returns {string} Full path to the database file
+ */
+function getJournalPath(journalName) {
+  // Sanitize journal name to prevent directory traversal
+  const safeName = journalName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.join(JOURNAL_DIR, `${safeName}.db`);
+}
 
 /**
  * Derives a 256-bit encryption key from a passphrase using Argon2id
@@ -30,12 +48,15 @@ async function deriveKey(passphrase, salt) {
 
 /**
  * Opens and unlocks the encrypted database
+ * @param {string} journalName - Name of the journal (without .db extension)
  * @param {string} passphrase - User's master passphrase
- * @returns {Promise<Database>} Unlocked database connection
+ * @returns {Promise<{db: Database, dbPath: string}>} Unlocked database connection and path
  */
-async function openDatabase(passphrase) {
+async function openDatabase(journalName, passphrase) {
+  const dbPath = getJournalPath(journalName);
+
   if (!fs.existsSync(dbPath)) {
-    throw new Error('Database file does not exist. Run bootstrap first.');
+    throw new Error(`Journal "${journalName}" does not exist. Create it first.`);
   }
 
   // Extract salt from first 16 bytes of database file
@@ -86,14 +107,15 @@ async function openDatabase(passphrase) {
   // Using default DELETE journal mode for single-file simplicity
   // No -wal or -shm files = easier backup/export
 
-  return db;
+  return { db, dbPath };
 }
 
 /**
  * Safely closes the database connection and updates main file
  * @param {Database} db - Database connection to close
+ * @param {string} dbPath - Path to the main database file
  */
-function closeDatabase(db) {
+function closeDatabase(db, dbPath) {
   if (db) {
     try {
       // Ensure all pending writes are flushed to disk
@@ -124,8 +146,25 @@ function closeDatabase(db) {
   }
 }
 
+/**
+ * List all available journals in the journal directory
+ * @returns {string[]} Array of journal names (without .db extension)
+ */
+function listJournals() {
+  if (!fs.existsSync(JOURNAL_DIR)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(JOURNAL_DIR)
+    .filter((file) => file.endsWith('.db'))
+    .map((file) => file.slice(0, -3)); // Remove .db extension
+}
+
 module.exports = {
   openDatabase,
   closeDatabase,
-  dbPath,
+  getJournalPath,
+  listJournals,
+  JOURNAL_DIR,
 };

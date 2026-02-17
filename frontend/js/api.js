@@ -28,10 +28,17 @@ class APIClient {
   }
 
   // Authentication
-  async unlock(passphrase) {
+  async createJournal(journalName, passphrase) {
+    return this.request('/journals', {
+      method: 'POST',
+      body: JSON.stringify({ journalName, passphrase }),
+    });
+  }
+
+  async unlock(journalName, passphrase) {
     const result = await this.request('/unlock', {
       method: 'POST',
-      body: JSON.stringify({ passphrase }),
+      body: JSON.stringify({ journalName, passphrase }),
     });
     this.unlocked = true;
     return result;
@@ -45,6 +52,10 @@ class APIClient {
 
   async getStatus() {
     return this.request('/status');
+  }
+
+  async listJournals() {
+    return this.request('/journals');
   }
 
   // Days

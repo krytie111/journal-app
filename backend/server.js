@@ -5,7 +5,9 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
-const { openDatabase, closeDatabase } = require('./db');
+const fs = require('fs');
+const { openDatabase, closeDatabase, listJournals } = require('./db');
+const { createJournal } = require('./db-bootstrap');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +18,7 @@ app.use(express.json({ limit: '50mb' })); // Support large blob uploads
 
 // In-memory session store (simple for single-user, replace with proper auth later)
 let dbConnection = null;
+let dbPath = null; // Store the current database path
 let isUnlocked = false;
 let autoSaveInterval = null;
 
@@ -26,18 +29,17 @@ function startAutoSave() {
   }
 
   autoSaveInterval = setInterval(() => {
-    if (dbConnection && isUnlocked) {
+    if (dbConnection && isUnlocked && dbPath) {
       try {
         // Sync temp DB back to main file periodically
-        const tempDbPath = require('./db').dbPath + '.tmp';
-        const mainDbPath = require('./db').dbPath;
+        const tempDbPath = dbPath + '.tmp';
 
-        if (require('fs').existsSync(tempDbPath)) {
-          const dbData = require('fs').readFileSync(tempDbPath);
-          const fileData = require('fs').readFileSync(mainDbPath);
+        if (fs.existsSync(tempDbPath)) {
+          const dbData = fs.readFileSync(tempDbPath);
+          const fileData = fs.readFileSync(dbPath);
           const salt = fileData.slice(0, 16);
           const dbWithHeader = Buffer.concat([salt, dbData]);
-          require('fs').writeFileSync(mainDbPath, dbWithHeader);
+          fs.writeFileSync(dbPath, dbWithHeader);
           console.log('Auto-saved database changes');
         }
       } catch (err) {
@@ -69,20 +71,48 @@ function requireUnlock(req, res, next) {
 
 // === Authentication Routes ===
 
+// GET /api/journals - List available journals
+app.get('/api/journals', (req, res) => {
+  try {
+    const journals = listJournals();
+    res.json(journals);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/journals - Create a new journal
+app.post('/api/journals', async (req, res) => {
+  try {
+    const { journalName, passphrase } = req.body;
+
+    if (!journalName || !passphrase) {
+      return res.status(400).json({ error: 'Journal name and passphrase required' });
+    }
+
+    await createJournal(journalName, passphrase);
+    res.json({ success: true, message: `Journal "${journalName}" created` });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // POST /api/unlock - Unlock the vault with passphrase
 app.post('/api/unlock', async (req, res) => {
   try {
-    const { passphrase } = req.body;
+    const { journalName, passphrase } = req.body;
 
-    if (!passphrase) {
-      return res.status(400).json({ error: 'Passphrase required' });
+    if (!journalName || !passphrase) {
+      return res.status(400).json({ error: 'Journal name and passphrase required' });
     }
 
-    dbConnection = await openDatabase(passphrase);
+    const result = await openDatabase(journalName, passphrase);
+    dbConnection = result.db;
+    dbPath = result.dbPath;
     isUnlocked = true;
     startAutoSave();
 
-    res.json({ success: true, message: 'Vault unlocked' });
+    res.json({ success: true, message: 'Vault unlocked', journalName });
   } catch (err) {
     res.status(401).json({ error: err.message });
   }
@@ -92,8 +122,9 @@ app.post('/api/unlock', async (req, res) => {
 app.post('/api/lock', (req, res) => {
   stopAutoSave();
   if (dbConnection) {
-    closeDatabase(dbConnection);
+    closeDatabase(dbConnection, dbPath);
     dbConnection = null;
+    dbPath = null;
   }
   isUnlocked = false;
   res.json({ success: true, message: 'Vault locked' });
@@ -415,8 +446,9 @@ const shutdown = () => {
   console.log('Shutting down gracefully...');
   stopAutoSave();
   if (dbConnection) {
-    closeDatabase(dbConnection);
+    closeDatabase(dbConnection, dbPath);
     dbConnection = null;
+    dbPath = null;
   }
   process.exit(0);
 };
@@ -429,7 +461,7 @@ process.on('SIGHUP', shutdown);
 process.on('uncaughtException', (err) => {
   console.error('Uncaught exception:', err);
   if (dbConnection) {
-    closeDatabase(dbConnection);
+    closeDatabase(dbConnection, dbPath);
   }
   process.exit(1);
 });

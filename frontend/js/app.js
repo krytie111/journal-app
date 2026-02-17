@@ -30,8 +30,23 @@ class JournalApp {
 
     // Unlock form
     this.unlockForm = document.getElementById('unlock-form');
+    this.journalNameInput = document.getElementById('journal-name');
     this.passphraseInput = document.getElementById('passphrase');
     this.unlockError = document.getElementById('unlock-error');
+    this.createNewBtn = document.getElementById('create-new-btn');
+
+    // Create journal modal
+    this.createJournalModal = document.getElementById('create-journal-modal');
+    this.closeCreateJournalBtn = document.getElementById('close-create-journal');
+    this.createJournalForm = document.getElementById('create-journal-form');
+    this.newJournalNameInput = document.getElementById('new-journal-name');
+    this.newJournalPassphraseInput = document.getElementById('new-journal-passphrase');
+    this.newJournalPassphraseConfirmInput = document.getElementById(
+      'new-journal-passphrase-confirm'
+    );
+    this.confirmCreateBtn = document.getElementById('confirm-create');
+    this.cancelCreateBtn = document.getElementById('cancel-create');
+    this.createError = document.getElementById('create-error');
 
     // Date controls
     this.dateSelector = document.getElementById('date-selector');
@@ -71,10 +86,21 @@ class JournalApp {
       this.handleUnlock();
     });
 
+    // Create new journal
+    this.createNewBtn.addEventListener('click', () => this.showCreateJournalModal());
+    this.closeCreateJournalBtn.addEventListener('click', () => this.hideCreateJournalModal());
+    this.confirmCreateBtn.addEventListener('click', () => this.handleCreateJournal());
+    this.cancelCreateBtn.addEventListener('click', () => this.hideCreateJournalModal());
+    this.createJournalModal.addEventListener('click', (e) => {
+      if (e.target === this.createJournalModal) {
+        this.hideCreateJournalModal();
+      }
+    });
+
     // Date navigation
     this.dateSelector.addEventListener('change', () => {
       const selectedDate = this.dateSelector.value;
-      
+
       // Validate that the selected date exists
       if (!this.dayExists(selectedDate)) {
         // Revert to current date and show warning
@@ -82,7 +108,7 @@ class JournalApp {
         console.warn('Cannot select date with no journal entry:', selectedDate);
         return;
       }
-      
+
       this.loadDate(selectedDate);
     });
 
@@ -151,16 +177,81 @@ class JournalApp {
   }
 
   async handleUnlock() {
+    const journalName = this.journalNameInput.value.trim();
     const passphrase = this.passphraseInput.value;
     this.unlockError.textContent = '';
 
+    if (!journalName) {
+      this.unlockError.textContent = 'Journal name is required';
+      return;
+    }
+
     try {
-      await api.unlock(passphrase);
+      await api.unlock(journalName, passphrase);
       this.showApp();
       await this.loadExistingDays();
       this.goToCurrentEditableDay();
     } catch (err) {
       this.unlockError.textContent = err.message;
+    }
+  }
+
+  showCreateJournalModal() {
+    this.createJournalModal.classList.remove('hidden');
+    this.createError.textContent = '';
+    this.newJournalNameInput.value = '';
+    this.newJournalPassphraseInput.value = '';
+    this.newJournalPassphraseConfirmInput.value = '';
+  }
+
+  hideCreateJournalModal() {
+    this.createJournalModal.classList.add('hidden');
+  }
+
+  async handleCreateJournal() {
+    const journalName = this.newJournalNameInput.value.trim();
+    const passphrase = this.newJournalPassphraseInput.value;
+    const passphraseConfirm = this.newJournalPassphraseConfirmInput.value;
+    this.createError.textContent = '';
+
+    if (!journalName) {
+      this.createError.textContent = 'Journal name is required';
+      return;
+    }
+
+    if (!passphrase) {
+      this.createError.textContent = 'Passphrase is required';
+      return;
+    }
+
+    if (passphrase !== passphraseConfirm) {
+      this.createError.textContent = 'Passphrases do not match';
+      return;
+    }
+
+    if (passphrase.length < 8) {
+      this.createError.textContent = 'Passphrase must be at least 8 characters';
+      return;
+    }
+
+    try {
+      await api.createJournal(journalName, passphrase);
+      this.hideCreateJournalModal();
+
+      // Auto-fill the unlock form
+      this.journalNameInput.value = journalName;
+      this.passphraseInput.value = passphrase;
+
+      // Show success message
+      this.unlockError.style.color = 'var(--success-color)';
+      this.unlockError.textContent = `Journal "${journalName}" created successfully! Click Unlock to open it.`;
+
+      setTimeout(() => {
+        this.unlockError.style.color = '';
+        this.unlockError.textContent = '';
+      }, 3000);
+    } catch (err) {
+      this.createError.textContent = err.message;
     }
   }
 
@@ -326,7 +417,7 @@ class JournalApp {
       this.dateSelector.min = this.existingDays[0];
       this.dateSelector.max = this.existingDays[this.existingDays.length - 1];
     }
-    
+
     // Update previous day button
     const currentIndex = this.existingDays.indexOf(this.currentDate);
     this.prevDayBtn.disabled = currentIndex <= 0;

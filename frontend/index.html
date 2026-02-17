@@ -13,6 +13,13 @@
         <h1>🔒 Journal Vault</h1>
         <form id="unlock-form">
           <input
+            type="text"
+            id="journal-name"
+            placeholder="Journal name"
+            required
+            autocomplete="off"
+          />
+          <input
             type="password"
             id="passphrase"
             placeholder="Enter passphrase"
@@ -21,7 +28,51 @@
           />
           <button type="submit">Unlock</button>
         </form>
+        <button id="create-new-btn" class="btn-secondary create-new-btn">Create New Journal</button>
         <div id="unlock-error" class="error"></div>
+      </div>
+    </div>
+
+    <!-- Create Journal Modal -->
+    <div id="create-journal-modal" class="modal hidden">
+      <div class="modal-content modal-confirm">
+        <div class="modal-header">
+          <h2>Create New Journal</h2>
+          <button id="close-create-journal" class="btn-close" title="Close">✖</button>
+        </div>
+        <div class="modal-body">
+          <form id="create-journal-form">
+            <label for="new-journal-name">Journal Name</label>
+            <input
+              type="text"
+              id="new-journal-name"
+              placeholder="my-journal"
+              required
+              autocomplete="off"
+            />
+            <label for="new-journal-passphrase">Passphrase</label>
+            <input
+              type="password"
+              id="new-journal-passphrase"
+              placeholder="Choose a strong passphrase"
+              required
+              autocomplete="new-password"
+            />
+            <label for="new-journal-passphrase-confirm">Confirm Passphrase</label>
+            <input
+              type="password"
+              id="new-journal-passphrase-confirm"
+              placeholder="Re-enter passphrase"
+              required
+              autocomplete="new-password"
+            />
+            <div id="create-error" class="error"></div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button id="confirm-create" class="btn-primary">Create Journal</button>
+          <button id="cancel-create" class="btn-secondary">Cancel</button>
+        </div>
       </div>
     </div>
 
