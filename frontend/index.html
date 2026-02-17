@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Journal App - Project Progress</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <!-- Unlock Screen -->
+    <div id="unlock-screen" class="screen">
+      <div class="unlock-container">
+        <h1>🔒 Journal Vault</h1>
+        <form id="unlock-form">
+          <input
+            type="text"
+            id="journal-name"
+            placeholder="Journal name"
+            required
+            autocomplete="off"
+          />
+          <input
+            type="password"
+            id="passphrase"
+            placeholder="Enter passphrase"
+            required
+            autocomplete="off"
+          />
+          <button type="submit">Unlock</button>
+        </form>
+        <button id="create-new-btn" class="btn-secondary create-new-btn">Create New Journal</button>
+        <div id="unlock-error" class="error"></div>
+      </div>
+    </div>
+
+    <!-- Create Journal Modal -->
+    <div id="create-journal-modal" class="modal hidden">
+      <div class="modal-content modal-confirm">
+        <div class="modal-header">
+          <h2>Create New Journal</h2>
+          <button id="close-create-journal" class="btn-close" title="Close">✖</button>
+        </div>
+        <div class="modal-body">
+          <form id="create-journal-form">
+            <label for="new-journal-name">Journal Name</label>
+            <input
+              type="text"
+              id="new-journal-name"
+              placeholder="my-journal"
+              required
+              autocomplete="off"
+            />
+            <label for="new-journal-passphrase">Passphrase</label>
+            <input
+              type="password"
+              id="new-journal-passphrase"
+              placeholder="Choose a strong passphrase"
+              required
+              autocomplete="new-password"
+            />
+            <label for="new-journal-passphrase-confirm">Confirm Passphrase</label>
+            <input
+              type="password"
+              id="new-journal-passphrase-confirm"
+              placeholder="Re-enter passphrase"
+              required
+              autocomplete="new-password"
+            />
+            <div id="create-error" class="error"></div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button id="confirm-create" class="btn-primary">Create Journal</button>
+          <button id="cancel-create" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main App Screen -->
+    <div id="app-screen" class="screen hidden">
+      <!-- Floating Windows Container -->
+      <div id="windows-container">
+        <!-- Core UI - Control Panel -->
+        <div id="core-ui">
+          <div class="control-bar">
+            <div class="date-controls">
+              <button id="prev-day" title="Previous Day (←)">◀</button>
+              <input type="date" id="date-selector" />
+              <button id="next-day" title="Next Day (→)">▶</button>
+              <button id="today" title="Today">Today</button>
+            </div>
+
+            <div class="actions">
+              <button id="add-prompt" class="btn-primary" title="Add Journal Prompt">
+                + Prompt
+              </button>
+              <button id="add-freeform" class="btn-primary" title="Add Freeform Text">
+                + Text
+              </button>
+              <button id="lock-vault" class="btn-secondary" title="Lock Vault">🔒 Lock</button>
+            </div>
+          </div>
+
+          <!-- Persistent Goals Section -->
+          <div class="persistent-goals">
+            <div class="goals-header">
+              <h2>Persistent Goals</h2>
+              <button id="edit-goals" class="btn-icon">✏️</button>
+            </div>
+            <div id="goals-display" class="goals-content"></div>
+            <textarea
+              id="goals-editor"
+              class="goals-editor hidden"
+              placeholder="Write your persistent goals here..."
+            ></textarea>
+            <div class="goals-actions hidden">
+              <button id="save-goals" class="btn-primary">Save</button>
+              <button id="cancel-goals" class="btn-secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Zoom Controls -->
+      <div id="zoom-controls">
+        <button id="zoom-in" title="Zoom In (+)">+</button>
+        <button id="zoom-reset" title="Reset Zoom (0)">⊙</button>
+        <button id="zoom-out" title="Zoom Out (-)">−</button>
+        <div id="zoom-level">100%</div>
+      </div>
+    </div>
+
+    <!-- Journal Prompts Modal -->
+    <div id="prompts-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Journal Prompts</h2>
+          <button id="close-prompts" class="btn-close" title="Close">✖</button>
+        </div>
+        <div class="modal-body">
+          <div class="prompts-filters">
+            <button class="filter-btn active" data-category="all">All</button>
+          </div>
+          <div id="prompts-list" class="prompts-list">
+            <!-- Prompts will be loaded here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Advance Day Confirmation Modal -->
+    <div id="advance-day-modal" class="modal hidden">
+      <div class="modal-content modal-confirm">
+        <div class="modal-header">
+          <h2>⚠️ Advance to Today?</h2>
+        </div>
+        <div class="modal-body">
+          <p>Your current journal entries will become read-only and uneditable.</p>
+          <p>A new journal entry will be created for today's date. Do you want to proceed?</p>
+        </div>
+        <div class="modal-footer">
+          <button id="confirm-advance" class="btn-primary">Yes, Advance</button>
+          <button id="cancel-advance" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Window Template -->
+    <template id="window-template">
+      <div class="floating-window" data-window-id="">
+        <div class="window-header">
+          <div class="window-title" contenteditable="true" spellcheck="false">Window Title</div>
+          <div class="window-controls">
+            <button class="btn-pin" title="Pin Window">📌</button>
+            <button class="btn-close" title="Close Window">✖</button>
+          </div>
+        </div>
+        <div class="window-content">
+          <textarea class="window-textarea" placeholder="Start writing..."></textarea>
+        </div>
+        <div class="window-resize-handle"></div>
+      </div>
+    </template>
+
+    <!-- Scripts -->
+    <script src="lib/interact.min.js"></script>
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
